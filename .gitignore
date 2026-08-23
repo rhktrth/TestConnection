@@ -1,0 +1,10 @@
+.vs/
+[Bb]in/
+[Oo]bj/
+dist/
+TestResults/
+*.user
+*.userosscache
+*.pfx
+*.snk
+*.log

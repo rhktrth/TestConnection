@@ -1,0 +1,13 @@
+* text=auto
+
+*.cs text eol=lf
+*.csproj text eol=lf
+*.config text eol=lf
+*.manifest text eol=lf
+*.resx text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.ico binary
+*.wav binary

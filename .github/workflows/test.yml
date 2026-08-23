@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'AGENTS.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'AGENTS.md'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@v3
+      - name: Build release package
+        run: msbuild src\TestConnection\TestConnection.csproj /restore /m /t:Package /p:Configuration=Release
+      - name: Build regression tests
+        run: msbuild tests\TestConnection.Tests\TestConnection.Tests.csproj /restore /m /p:Configuration=Release
+      - name: Run regression tests
+        run: .\tests\TestConnection.Tests\bin\Release\net481\TestConnection.Tests.exe

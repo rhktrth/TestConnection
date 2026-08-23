@@ -1,0 +1,5 @@
+Server,127.0.0.1,,TCP,55001
+Server,127.0.0.1,,UDP,55002
+Client,,127.0.0.1,TCP,55001
+Client,,127.0.0.1,UDP,55002
+Client,,127.0.0.1,Ping,0

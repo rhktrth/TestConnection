@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net481</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <AssemblyTitle>TestConnection</AssemblyTitle>
+    <Description>TCP / UDP / DNS / Ping connectivity test tool for Windows</Description>
+    <Product>TestConnection</Product>
+    <Copyright>Copyright (c) TestConnection contributors</Copyright>
+    <NeutralLanguage>ja</NeutralLanguage>
+    <ApplicationIcon>res\32.ico</ApplicationIcon>
+    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Management" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <EmbeddedResource Update="UI\MainForm.resx">
+      <DependentUpon>MainForm.cs</DependentUpon>
+      <LogicalName>TestConnection.MainForm.resources</LogicalName>
+    </EmbeddedResource>
+    <None Update="res\default.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="res\failure.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="res\sample-tcp100.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="res\success.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="ValidateTargetFrameworkPolicy" BeforeTargets="PrepareForBuild">
+    <Error Condition=" '$(TargetFramework)' != 'net481' " Text="TargetFramework は ADR-0001 により net481 に固定されています。変更する場合は先に ADR-0001 を更新してください。" />
+  </Target>
+
+  <Target Name="Package" DependsOnTargets="Build">
+    <PropertyGroup>
+      <_RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))</_RepositoryRoot>
+      <_DistDirectory>$(_RepositoryRoot)\dist</_DistDirectory>
+      <_PackageDirectory>$(IntermediateOutputPath)package\TestConnection-$(Version)</_PackageDirectory>
+      <_PackageZip>$(_DistDirectory)\TestConnection-$(Version).zip</_PackageZip>
+    </PropertyGroup>
+    <Error Condition=" !Exists('$(TargetPath)') " Text="build output がありません: $(TargetPath)" />
+    <Error Condition=" !Exists('$(TargetPath).config') " Text="build output がありません: $(TargetPath).config" />
+    <Error Condition=" !Exists('$(TargetDir)res') " Text="build output がありません: $(TargetDir)res" />
+    <RemoveDir Directories="$(_PackageDirectory)" />
+    <RemoveDir Directories="$(_DistDirectory)" />
+    <MakeDir Directories="$(_PackageDirectory);$(_PackageDirectory)\res;$(_DistDirectory)" />
+    <ItemGroup>
+      <_PackageRootFile Include="$(TargetPath)" />
+      <_PackageRootFile Include="$(TargetPath).config" />
+      <_PackageRootFile Include="$(_RepositoryRoot)\README.md" />
+      <_PackageRootFile Include="$(_RepositoryRoot)\LICENSE.txt" />
+      <_PackageResource Include="$(TargetDir)res\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PackageRootFile)" DestinationFolder="$(_PackageDirectory)" />
+    <Copy SourceFiles="@(_PackageResource)" DestinationFiles="@(_PackageResource->'$(_PackageDirectory)\res\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <ZipDirectory SourceDirectory="$(_PackageDirectory)" DestinationFile="$(_PackageZip)" Overwrite="true" />
+    <Message Text="Created $(_PackageZip)" Importance="high" />
+  </Target>
+</Project>

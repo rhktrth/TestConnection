@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to build and upload assets to (for example v0.3.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+\.\d+$') {
+              throw "release tag must be vX.Y.Z.W: $env:RELEASE_TAG"
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: microsoft/setup-msbuild@v3
+
+      - name: Inject release version into application manifest
+        shell: pwsh
+        run: |
+          $manifest = 'src\TestConnection\Properties\app.manifest'
+          $xml = Get-Content $manifest -Raw
+          $updated = [regex]::Replace(
+              $xml,
+              '(<assemblyIdentity\s+version=")[^"]+("\s+name="TestConnection\.exe"\s*/>)',
+              "`$1$env:VERSION`$2",
+              1)
+          if ($updated -eq $xml) {
+              throw "could not update assemblyIdentity version in $manifest"
+          }
+          Set-Content $manifest -Value $updated -Encoding utf8
+
+      - name: Package
+        shell: pwsh
+        run: |
+          msbuild src\TestConnection\TestConnection.csproj /restore /m /t:Package /p:Configuration=Release `
+            /p:Version=$env:VERSION `
+            /p:AssemblyVersion=$env:VERSION `
+            /p:FileVersion=$env:VERSION `
+            /p:InformationalVersion=$env:VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          $zip = "dist/TestConnection-$env:VERSION.zip"
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $zip -Leaf)" | Set-Content "$zip.sha256" -Encoding ascii
+
+      - name: Upload assets to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload $env:RELEASE_TAG `
+            "dist/TestConnection-$env:VERSION.zip" `
+            "dist/TestConnection-$env:VERSION.zip.sha256" `
+            --clobber
