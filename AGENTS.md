@@ -1,6 +1,6 @@
 # TestConnection 向け AI・開発ルール
 
-このファイルは TestConnection を変更するときの作業規則と完了条件を定めます。製品仕様そのものは再定義しません。
+このファイルは、TestConnection を変更するときの作業規則と完了条件を定めます。製品仕様そのものは再定義しません。
 
 ## 正本
 
@@ -9,131 +9,132 @@
 - 外部設計: [`docs/EXTERNAL_DESIGN.md`](docs/EXTERNAL_DESIGN.md)
 - 内部設計: [`docs/INTERNAL_DESIGN.md`](docs/INTERNAL_DESIGN.md)
 - 利用者向け概要・使い方: [`README.md`](README.md)
-- build / test / package / release: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- ビルド・テスト・配布・リリース: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
 - 重要な設計判断: [`docs/adr/`](docs/adr/)
-- Pull Request CI: [`.github/workflows/test.yml`](.github/workflows/test.yml)
-- Release automation: [`.github/workflows/release.yml`](.github/workflows/release.yml)
+- PR 時の CI: [`.github/workflows/test.yml`](.github/workflows/test.yml)
+- リリース処理: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 
-source code と test は、上位の要件・設計を実現・検証する成果物です。矛盾した場合に code や test を自動的な正本として扱いません。
+ソースコードとテストは、上位の要件・設計を実現・検証する成果物です。矛盾した場合に、ソースコードやテストを自動的な正本として扱ってはいけません。
 
 ## 仕様駆動開発の必須順序
 
-機能、挙動、内部構造を変更するときは、**要件 → 外部設計 → 内部設計 → 実装 → テスト** の順序を必ず守ります。
+機能、外部挙動、内部構造を変更するときは、**要件 → 外部設計 → 内部設計 → 実装 → テスト** の順序を必ず守ります。
 
 1. **要件確認・要件定義**
-   - 依頼が既存 `REQ-*` の範囲内か、要件変更かを判断する。
-   - 要件変更なら、最初に `docs/REQUIREMENTS.md` を変更して要求を確定する。
+   - 依頼が既存の `REQ-*` の範囲内か、要件変更かを判断する。
+   - 要件変更であれば、最初に `docs/REQUIREMENTS.md` を変更して要求を確定する。
 2. **外部設計**
-   - 確定した要件を observable contract へ落とし、`docs/EXTERNAL_DESIGN.md` の `EXT-*` と必要な `AC-*` を確定する。
+   - 確定した要件を、外部から観測できる仕様へ具体化する。
+   - `docs/EXTERNAL_DESIGN.md` の `EXT-*` と、必要な `AC-*` を確定する。
 3. **内部設計**
-   - 外部 contract を実現する responsibility、processing、state、concurrency、resource ownership、error handling を `docs/INTERNAL_DESIGN.md` と `INT-*` で確定する。
+   - 外部仕様を実現する責務、処理順序、状態、並行処理、リソースの所有関係、エラー処理を `docs/INTERNAL_DESIGN.md` と `INT-*` で確定する。
 4. **実装**
-   - 確定した内部設計を production code / project file / configuration / workflow へ実装する。
-   - 実装途中で上位設計が不適切と分かった場合は、その場で code に合わせず、該当する上位段階へ戻って先に修正する。
+   - 確定した内部設計を、ソースコード、プロジェクトファイル、設定、ワークフローへ実装する。
+   - 実装途中で上位設計が不適切と分かった場合は、その場でコードに合わせず、該当する上位段階へ戻って先に修正する。
 5. **テスト**
-   - 実装後に、その実装が `REQ-*` / `EXT-*` / `INT-*` / `AC-*` を満たすことを test / manual verification で検証する。
-   - regression risk がある contract に不足する test があれば追加・更新する。
+   - 実装後に、その実装が `REQ-*` / `EXT-*` / `INT-*` / `AC-*` を満たすことを、自動テストまたは手動確認で検証する。
+   - 回帰リスクがある仕様に不足するテストがあれば追加または更新する。
 6. **横断確認**
-   - 要件、外部設計、内部設計、実装、テスト、README、OPERATIONS、ADR の矛盾・古い記述・不要な重複を確認する。
+   - 要件、外部設計、内部設計、実装、テスト、README、OPERATIONS、ADR に、矛盾・古い記述・不要な重複がないことを確認する。
 
-この順序は commit 分割を要求しません。同一 Pull Request / commit 内でも構いませんが、判断・編集の順序は上流から下流へ進めます。
+この順序は、工程ごとにコミットを分けることを要求しません。同じ PR や同じコミットに含めても構いませんが、判断と編集は必ず上流から下流へ進めます。
 
 ## 変更分類
 
-作業開始時に次を分類します。
+作業開始時に次のいずれかへ分類します。
 
 - **A: 要件変更** — 目的、機能要件、非機能要件、制約が変わる。
-- **B: 外部設計変更** — 要件は同じだが、外部から観測できる contract が変わる。
-- **C: 内部設計変更** — 外部 contract は同じだが、内部責務・処理方式・lifecycle 等が変わる。
-- **D: 実装のみ** — 上位仕様を変えない bug fix / refactoring。
-- **E: 運用のみ** — build / test / package / CI / release 手順だけが変わる。
+- **B: 外部設計変更** — 要件は同じだが、外部から観測できる仕様が変わる。
+- **C: 内部設計変更** — 外部仕様は同じだが、内部の責務・処理方式・ライフサイクルなどが変わる。
+- **D: 実装のみ** — 上位仕様を変えない不具合修正・整理。
+- **E: 運用のみ** — ビルド、テスト、配布物作成、CI、リリースの手順だけが変わる。
 
-A/B/C は下流への影響を必ず確認します。D でも production code を編集する前に、既存 REQUIREMENTS / EXTERNAL_DESIGN / INTERNAL_DESIGN が変更後も真であることを確認します。
+A / B / C は、必ず下流工程への影響を確認します。D の場合でも、実装を変更する前に既存の REQUIREMENTS / EXTERNAL_DESIGN / INTERNAL_DESIGN が変更後も正しいことを確認します。
 
-## Stable ID と TBD
+## 仕様 ID と未確定事項
 
 - 要件: `REQ-<AREA>-NNN`
 - 外部仕様: `EXT-<AREA>-NNN`
-- acceptance: `AC-<AREA>-NNN`
+- 受入条件: `AC-<AREA>-NNN`
 - 内部設計: `INT-<AREA>-NNN`
 - 未確定事項: `TBD-<AREA>-NNN`
 
-ID は全行へ付けません。変更、review、traceability に価値がある contract / design unit にだけ付与します。
+ID は全行へ付けません。変更、レビュー、対応関係の確認に価値がある仕様・設計単位だけに付与します。
 
-未確定事項を source code、現在の test、一般的 best practice、他製品の慣例、AI の推測だけで確定しません。
+未確定事項を、ソースコード、現在のテスト、一般的なベストプラクティス、他製品の慣例、AI の推測だけで確定してはいけません。
 
-## Traceability
+## 追跡可能性
 
-原則として次を追跡可能にします。
+原則として、次の対応を追跡できる状態を維持します。
 
 ```text
-REQ -> EXT / AC -> INT -> implementation -> test
+REQ -> EXT / AC -> INT -> 実装 -> テスト
 ```
 
-- requirement から、対応する外部 contract、内部設計、implementation、verification を探せること。
-- test / implementation から、どの上位 requirement / design を実現・検証しているか戻れること。
-- traceability のためだけに同じ仕様本文を別文書へコピーしないこと。
+- 要件から、対応する外部仕様、内部設計、実装、検証箇所を探せること。
+- テストや実装から、どの上位要件・設計を実現・検証しているか戻れること。
+- 対応関係を示すためだけに、同じ仕様本文を別文書へコピーしないこと。
 
-## 原則
+## 基本原則
 
-- 現在必要な疎通確認機能を単純に保ち、将来拡張だけを目的とする abstraction、framework、compatibility layer、設定項目を追加しない。
+- 現在必要な疎通確認機能を単純に保ち、将来拡張だけを目的とする抽象化、フレームワーク、互換層、設定項目を追加しない。
 - 共通化は変更理由が同じものに限定する。見た目が似ているだけではまとめない。
-- 過去の構成、移行経緯、廃止済み仕様を code / docs / comment に残さない。履歴は Git history / Issue / Pull Request / GitHub Releases に任せる。
-- runtime dependency は .NET Framework 標準ライブラリだけを基本とする。
-- IDE 固有設定を build / package の正本にしない。
-- installer / ClickOnce を前提にせず、展開して実行できる ZIP を配布単位とする。
-- 実名、個人メールアドレス、local user name、個人環境固有 path 等を code、設定、配布物へ含めない。
+- 過去の構成、移行経緯、廃止済み仕様をコード・文書・コメントへ残さない。履歴は Git history、Issue、PR、GitHub Releases に任せる。
+- 実行時依存は .NET Framework 標準ライブラリだけを基本とする。
+- IDE 固有設定をビルド・配布物作成の正本にしない。
+- インストーラーや ClickOnce を前提にせず、展開して実行できる ZIP を配布単位とする。
+- 実名、個人メールアドレス、ローカルユーザー名、個人環境固有のパスなどをコード、設定、配布物へ含めない。
 
 ## C# / WinForms
 
-- target framework / UI framework / distribution contract の変更は、production code より先に REQUIREMENTS / EXTERNAL_DESIGN / ADR を更新する。
-- project file は SDK-style を維持する。
+- 対象フレームワーク、UI フレームワーク、配布形態を変更する場合は、実装より先に REQUIREMENTS / EXTERNAL_DESIGN / ADR を更新する。
+- プロジェクトファイルは SDK-style を維持する。
 - C# はスペース4文字、XML / YAML はスペース2文字、UTF-8 / LF とする。共有書式は `.editorconfig` を正本とする。
-- comment は code から分からない理由・制約だけを書く。過去実装の説明は書かない。
+- コメントは、コードから分からない理由・制約だけを書く。過去実装の説明は書かない。
 - `MainForm` と通信処理の分離は、実際の変更理由がある範囲で段階的に行う。
 
 ## 文書
 
-- REQUIREMENTS は「何を必要とするか」を定義し、implementation detail を書かない。
-- EXTERNAL_DESIGN は observable contract を定義し、C# class や private API を書かない。
-- INTERNAL_DESIGN は responsibility、processing、state、concurrency、resource ownership、error handling を定義し、外部仕様を詳細にコピーしない。
+- REQUIREMENTS は「何を必要とするか」を定義し、実装詳細を書かない。
+- EXTERNAL_DESIGN は外部から観測できる仕様を定義し、C# のクラスや非公開 API を書かない。
+- INTERNAL_DESIGN は責務、処理順序、状態、並行処理、リソースの所有関係、エラー処理を定義し、外部仕様を詳細にコピーしない。
 - README は利用者向け説明に限定する。
-- OPERATIONS は build / test / package / CI / release の実際の手順に限定する。
-- ADR は重要な判断の理由と見直し条件に限定し、current contract を複製しない。
+- OPERATIONS はビルド、テスト、配布物作成、CI、リリースの実際の手順に限定する。
+- ADR は重要な判断の理由と見直し条件に限定し、現在の仕様を複製しない。
 - 同じ内容を複数文書へ同じ粒度で記載しない。
-- repository 内に CHANGELOG を維持しない。release 履歴と release note は GitHub Releases を正本とする。
+- リポジトリ内に CHANGELOG を維持しない。リリース履歴とリリースノートは GitHub Releases を正本とする。
 
 ## テスト
 
 - テストは工程上、要件・外部設計・内部設計・実装の後に行う検証段階とする。
-- coverage 率より、外部 contract、通信判定、停止処理、設定互換性、resource cleanup、配布物等の重大な回帰を優先する。
-- acceptance test は private implementation ではなく socket、file、result output 等の観測結果を検証する。
-- network integration test は原則 loopback を使用し、通常 CI から外部 host へ接続しない。
-- 実 NIC 等 deterministic に自動化しにくい項目は manual verification として明示する。
-- private implementation の細かな呼出順だけを固定する test を増やさない。
-- 現在の implementation へ合わせるためだけに上位 contract や test expectation を変更しない。
+- カバレッジ率より、外部仕様、通信判定、停止処理、設定互換性、リソースの後始末、配布物などの重大な回帰を優先する。
+- 受入テストは非公開実装ではなく、ソケット、ファイル、結果出力など外部から確認できる結果を検証する。
+- ネットワーク統合テストは原則ループバックを使用し、通常の CI から外部ホストへ接続しない。
+- 実 NIC など再現性のある自動化が難しい項目は、手動確認として明示する。
+- 非公開実装の細かな呼出順だけを固定するテストを増やさない。
+- 現在の実装へ合わせるためだけに、上位仕様やテスト期待値を変更しない。
 
 ## GitHub 上の変更
 
-- 挙動・構造変更は branch / Pull Request を基本とする。
-- Issue、Pull Request、commit 説明は日本語で書く。識別子・製品名・技術用語は不自然に日本語化しない。
-- unrelated refactoring を同じ Pull Request に混ぜない。
-- Pull Request では [`.github/pull_request_template.md`](.github/pull_request_template.md) により、要件→外部設計→内部設計→実装→テストの順序と traceability を確認する。
-- GitHub Actions は orchestration に留め、project file / test code の検証処理を workflow で二重実装しない。
-- default branch は `main` とする。
-- ユーザーの明示指示なしに Pull Request を merge しない。
+- 挙動・構造変更はブランチと PR を基本とする。
+- Issue、PR、コミット説明は日本語で書く。識別子、製品名、正式な技術用語は不自然に日本語化しない。
+- 無関係なリファクタリングを同じ PR に混ぜない。
+- PR では [`.github/pull_request_template.md`](.github/pull_request_template.md) により、要件 → 外部設計 → 内部設計 → 実装 → テストの順序と対応関係を確認する。
+- GitHub Actions は処理の組み合わせに留め、プロジェクトファイルやテストコードの検証処理をワークフロー側で二重実装しない。
+- 既定ブランチは `main` とする。
+- ユーザーの明示指示なしに PR をマージしない。
 
-## Definition of Done
+## 完了条件
 
 1. 変更が既存要件内か要件変更かを最初に判断した。
-2. 要件変更なら `REQUIREMENTS.md` を最初に更新した。
-3. 外部 contract を変更する場合、`EXTERNAL_DESIGN.md` を内部設計・実装より先に更新した。
-4. 内部方式を変更する場合、`INTERNAL_DESIGN.md` を implementation より先に更新した。
-5. production code は確定した内部設計に従っている。
-6. implementation 後の test / manual verification で上位 requirement / design を満たすことを確認した。
-7. `REQ -> EXT / AC -> INT -> implementation -> test` を追跡できる。
-8. Pull Request CI の Release package build と regression test が成功する。
-9. README / REQUIREMENTS / EXTERNAL_DESIGN / INTERNAL_DESIGN / OPERATIONS / ADR / implementation / test に矛盾や不要な重複がない。
-10. 変更後に不要になった file、setting、document、test、compatibility logic を残していない。
+2. 要件変更であれば `REQUIREMENTS.md` を最初に更新した。
+3. 外部仕様を変更する場合、`EXTERNAL_DESIGN.md` を内部設計・実装より先に更新した。
+4. 内部方式を変更する場合、`INTERNAL_DESIGN.md` を実装より先に更新した。
+5. 本体実装が確定した内部設計に従っている。
+6. 実装後のテスト・手動確認で上位要件・設計を満たすことを確認した。
+7. `REQ -> EXT / AC -> INT -> 実装 -> テスト` を追跡できる。
+8. PR の CI で Release ビルド、配布 ZIP 作成、回帰テストが成功する。
+9. README / REQUIREMENTS / EXTERNAL_DESIGN / INTERNAL_DESIGN / OPERATIONS / ADR / 実装 / テストに矛盾や不要な重複がない。
+10. 変更後に不要になったファイル、設定、文書、テスト、互換処理を残していない。
 
-実際の CI command は `.github/workflows/test.yml` を正本とします。
+実際の CI コマンドは `.github/workflows/test.yml` を正本とします。
