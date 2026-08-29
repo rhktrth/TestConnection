@@ -2,102 +2,106 @@
 
 このディレクトリの文書は、TestConnection を仕様駆動で変更するための現在有効な正本です。
 
-仕様 ID や受入条件は追跡のために使いますが、文書自体は人間が上から読んで理解しやすい構成を優先します。ID のために同じ内容を複数文書へ複製しません。
+TestConnection の仕様駆動開発は、一般的なソフトウェア設計の流れに沿って、**要件 → 外部設計 → 内部設計 → 実装 → テスト** の順序を必ず守ることを中心原則とします。
 
 ## 1. 正本と責務
 
-| 文書 | 正本として扱う内容 | 書かない内容 |
+| 段階 | 正本 | 定義する内容 |
 | --- | --- | --- |
-| [`../README.md`](../README.md) | 利用者向け概要、導入、基本的な使い方、重要な注意 | 詳細な契約、内部構造、開発手順 |
-| [`SPEC.md`](SPEC.md) | 利用者、接続相手、OS、設定ファイル、出力から観測できる現在の外部仕様、`EXT-*`、`AC-*`、外部仕様の追跡 | C# のクラス構成や非公開の実装方式 |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | コンポーネント責務、処理順、並行処理、resource ownership、内部不変条件、主要な `INT-*` | 利用者向け説明、外部仕様の詳細な再掲 |
-| [`OPERATIONS.md`](OPERATIONS.md) | build、test、package、CI、release の実際の手順 | 製品仕様、設計判断の理由 |
-| [`adr/`](adr/) | 現在有効な重要な設計判断の理由と見直し条件 | SPEC / ARCHITECTURE の契約のコピー |
-| [`../AGENTS.md`](../AGENTS.md) | AI・開発者が上記の正本を維持する作業規則と Definition of Done | 製品仕様そのもの |
-| [`.github/workflows/test.yml`](../.github/workflows/test.yml) | Pull Request CI で実際に実行する command | build 手順の説明書 |
-| [`.github/workflows/release.yml`](../.github/workflows/release.yml) | GitHub Release asset を生成する実際の automation | release 手順の説明書 |
+| 要件 | [`REQUIREMENTS.md`](REQUIREMENTS.md) | 何を満たす必要があるか、目的、機能要件、非機能要件、制約 |
+| 外部設計 | [`EXTERNAL_DESIGN.md`](EXTERNAL_DESIGN.md) | 利用者、接続相手、OS、file、出力から観測できる contract、`EXT-*`、`AC-*` |
+| 内部設計 | [`INTERNAL_DESIGN.md`](INTERNAL_DESIGN.md) | component responsibility、処理順、lifecycle、concurrency、resource ownership、`INT-*` |
+| 実装 | `src/`、project file、必要な設定 | 内部設計を具体化する production implementation |
+| テスト | `tests/` | 実装が要件・外部設計・内部設計を満たすことの検証 |
+| 運用 | [`OPERATIONS.md`](OPERATIONS.md) | build、test、package、CI、release の実際の手順 |
+| 設計判断 | [`adr/`](adr/) | 重要な設計判断の理由と見直し条件 |
+| 利用者向け | [`../README.md`](../README.md) | 概要、導入、基本的な使い方、重要な注意 |
 
-TestConnection では、他リポジトリで用いている `EXTERNAL_DESIGN.md` / `INTERNAL_DESIGN.md` を追加しません。既存の文書体系を活かし、**`SPEC.md` が外部設計、`ARCHITECTURE.md` が内部設計の役割を持つ**ものとします。同じ責務の文書を名前違いで増やさないことを優先します。
+`AGENTS.md` はこの工程と正本を維持する作業規則であり、製品仕様そのものの正本にはしません。
 
-source code と test は仕様を実現・検証する成果物です。正本文書と矛盾した場合に、自動的に source code 側を正本として扱いません。要求と正本を確認し、どちらを直すべきかを先に決めます。
+## 2. 必須の開発順序
 
-## 2. 仕様駆動の変更順序
+機能、外部挙動、内部構造を変更する場合は、次の順序で進めます。後段を先に変更し、前段を後付けしません。
 
-機能、外部挙動、内部構造を変更するときは、production code を先に変更して文書を追認させません。着手時に変更を次のいずれかへ分類します。
+1. **要件**
+   - 依頼が既存要件の範囲内か、要件そのものを変更するかを判断する。
+   - 要件変更なら `REQUIREMENTS.md` を最初に更新し、`REQ-*` を確定する。
+2. **外部設計**
+   - 確定した要件を、外部から観測できる contract へ落とす。
+   - `EXTERNAL_DESIGN.md` の `EXT-*` と必要な `AC-*` を確定する。
+3. **内部設計**
+   - 外部 contract を実現する責務、処理、状態、resource ownership を決める。
+   - `INTERNAL_DESIGN.md` と必要な `INT-*` を確定する。
+4. **実装**
+   - 確定した内部設計を production code / project / configuration へ実装する。
+   - 実装都合で上位設計を黙って変更しない。変更が必要なら該当する上位段階へ戻る。
+5. **テスト**
+   - 完成した実装が `REQ-*` / `EXT-*` / `INT-*` / `AC-*` を満たすことを検証する。
+   - 不足する regression / acceptance test を追加・更新する。
+6. **横断整合性確認**
+   - 要件、外部設計、内部設計、実装、テスト、README、OPERATIONS、ADR に矛盾や不要な重複がないことを確認する。
 
-- **A: 外部仕様変更** — protocol の success / failure、設定形式、入力、出力、NIC 操作、利用者から見える挙動が変わる。
-- **B: 内部設計変更** — 外部仕様は維持したまま、責務、処理順、並行処理、resource ownership、error handling 等が変わる。
-- **C: 運用変更** — build、test、package、CI、release の方法が変わる。
-- **D: 実装のみ** — bug fix や整理で、既存の仕様・設計・運用が変更後もそのまま真である。
+この順序は「別 commit に分ける」という意味ではありません。同一 Pull Request / commit 内でも構いませんが、**作業上の判断と編集は上流から下流へ進める**ことを要求します。
 
-原則の作業順序は次です。
+## 3. 変更分類
 
-1. `docs/README.md` と関係する正本文書、ADR、test、production code の順に現状を確認する。
-2. A の場合は `SPEC.md` を先に変更し、維持すべき契約を `EXT-*` として確定する。
-3. 回帰リスクがある外部契約には、implementation detail に依存しない `AC-*` を追加・更新する。
-4. B、または A に伴って内部構造が変わる場合は `ARCHITECTURE.md` を先に更新し、必要な設計単位だけ `INT-*` で識別する。
-5. 複数の合理的な選択肢があり、将来も判断理由を残す価値がある場合だけ ADR を追加・変更・統合する。
-6. 変更後の仕様・設計を検証する test を変更・追加する。
-7. その仕様・設計・test を満たすよう production code、project file、workflow 等を変更する。
-8. README / OPERATIONS 等へ影響する場合は、それぞれの責務の範囲だけ更新する。
-9. 最後に関連する正本、test、implementation を横断し、古い挙動、用語、設定、重複記述が残っていないことを確認する。
+着手時に変更を分類します。
 
-内部設計を検討した結果、最初に考えた外部仕様が不適切と分かった場合は、implementation に合わせて黙って挙動を変えません。`SPEC.md` へ戻って外部仕様を明示的に改訂してから先へ進みます。
+- **A: 要件変更** — 目的、提供機能、制約、非機能要件が変わる。
+- **B: 外部設計変更** — 要件は同じだが observable contract が変わる。
+- **C: 内部設計変更** — 外部 contract は同じだが内部責務・方式が変わる。
+- **D: 実装のみ** — 要件・外部設計・内部設計はそのままで bug fix / refactoring を行う。
+- **E: 運用のみ** — build / test / package / CI / release 手順だけが変わる。
 
-D の変更では文書を機械的に触りません。ただし Pull Request には、なぜ仕様・設計変更が不要なのかを記載し、関連する正本が変更後も真であることを確認します。
+A は必ず B/C/実装/テストへの影響を確認します。B は C/実装/テストへの影響を確認します。C は実装/テストへの影響を確認します。
 
-## 3. Stable ID と TBD
+D でも、実装変更前に既存 `REQUIREMENTS.md`、`EXTERNAL_DESIGN.md`、`INTERNAL_DESIGN.md` が変更後も真であることを確認します。
 
-ID は章立ての代わりではなく、変更・review・test を追跡する価値がある契約だけに付与します。
+## 4. Stable ID
 
+- 要件: `REQ-<AREA>-NNN`
 - 外部仕様: `EXT-<AREA>-NNN`
 - 受入条件: `AC-<AREA>-NNN`
 - 内部設計: `INT-<AREA>-NNN`
 - 未確定事項: `TBD-<AREA>-NNN`
 
-同じ意味の契約は同じ ID を維持します。文章を整理するためだけに ID を振り直しません。契約を分割・廃止する必要がある場合は Pull Request で理由を説明します。
+ID は章立ての代わりではありません。変更、review、traceability に価値がある単位だけに付与します。
 
-`AC-*` は private method や mock の呼出順ではなく、利用者、socket、file、出力等から観測できる Given / When / Then として定義します。自動化できない環境依存の受入条件は、無理に fake test を作らず manual verification と明示します。
+未確定事項は `TBD-*` として上流文書で明示し、source code、現在の test、一般的 best practice、AI の推測だけで確定しません。
 
-未確定事項が implementation を止める場合は `TBD-*` として正本へ明記します。現在の source code、一般的な best practice、他製品の慣例、AI の推測だけで TBD を解消しません。
+## 5. Traceability
 
-## 4. Traceability
-
-外部挙動を変更する場合は、原則として次を双方向に追える状態を維持します。
+原則として次の方向で追跡できる状態を維持します。
 
 ```text
-EXT -> AC -> test -> production component
-              \
-               -> manual verification（自動化できない場合）
+REQ -> EXT / AC -> INT -> implementation -> test
 ```
 
-内部設計が重要な場合は `INT-*` を間に置きます。
+逆方向にも、test failure や source code から、どの internal design、external contract、requirement を実現・検証しているか説明できることを目標とします。
 
-```text
-EXT / AC -> INT -> test / production component
-```
+traceability のためだけの巨大な独立台帳は作らず、`REQUIREMENTS.md`、`EXTERNAL_DESIGN.md`、`INTERNAL_DESIGN.md` の対応表を使用します。
 
-`SPEC.md` 末尾の対応表を automated acceptance の索引とします。別の巨大な traceability 文書は作りません。`ARCHITECTURE.md` は外部仕様の全文をコピーせず、必要な `EXT-*` / `AC-*` を参照して内部責務を説明します。
+## 6. 文書の重複を避ける規則
 
-## 5. 重複を増やさない規則
+- REQUIREMENTS は「何を必要とするか」を書き、具体的な UI / protocol behavior / class design を書かない。
+- EXTERNAL_DESIGN は observable contract を書き、C# class や private implementation を書かない。
+- INTERNAL_DESIGN は内部責務・方式を書き、外部 contract を詳細にコピーしない。
+- README は利用者向け説明に限定し、詳細は外部設計へ参照する。
+- OPERATIONS は実際の command / CI / release 操作に限定する。
+- ADR は contract の一覧ではなく、重要な判断理由と見直し条件に限定する。
+- test は同じ contract を複数階層で重複して固定しない。
 
-- README は利用者が最初に必要とする概要と注意だけを書き、詳細な success 条件、名前解決規則、設定 contract は `SPEC.md` へ寄せる。
-- SPEC は外部から観測できる契約を書く。C# class、thread API、private helper 等を仕様へ固定しない。
-- ARCHITECTURE は内部設計を書く。外部契約を説明する必要がある場合は `EXT-*` を参照し、同じ表や条件を再掲しない。
-- OPERATIONS は実際に実行する command と release 操作を書く。製品仕様を再説明しない。
-- ADR は「なぜその判断か」「どの前提が変われば見直すか」に限定し、現在仕様の一覧を持たない。
-- AGENTS は作業規則を定義し、製品の個別仕様をコピーしない。
-- test は同じ契約を複数階層で重複して固定しない。上位 test で十分に検証できる場合は private detail の test を増やさない。
-- 過去の構成、廃止済み仕様、移行経緯は現行文書へ蓄積せず、Git history / Issue / Pull Request / GitHub Releases に任せる。
+重複排除の目的は文書数を減らすことではありません。**要件・外部設計・内部設計を明確に分離し、それぞれの正本を一つにすること**を優先します。
 
-## 6. 矛盾の扱い
+## 7. 矛盾が見つかった場合
 
-正本同士、または正本と implementation に矛盾を見つけた場合は、次の順で解消します。
+矛盾を code に合わせて文書だけ修正しません。
 
-1. その挙動に対する現在の要求を確認する。
-2. 責務表に従い、どの文書がその事項の正本かを特定する。
-3. 正本を先に一意な内容へ直す。
-4. acceptance、内部設計、test、implementation を正本へ合わせる。
-5. 同じ内容を別文書へ再度コピーして整合を取ろうとしない。
+1. `REQUIREMENTS.md` で現在の要求を確認する。
+2. 外部 contract の問題なら `EXTERNAL_DESIGN.md` を確認する。
+3. 内部方式の問題なら `INTERNAL_DESIGN.md` を確認する。
+4. 上流から正しい内容を確定する。
+5. その順に実装を合わせる。
+6. 最後に test で検証する。
 
-仕様駆動開発は文書量を増やすことではなく、**変更前に契約を確定し、正本を一つにし、その契約を test と implementation へ追跡できる状態を保つこと**を目的とします。
+下流の現在状態から上流仕様を後付けするのではなく、常に上流から下流へ整合させます。
