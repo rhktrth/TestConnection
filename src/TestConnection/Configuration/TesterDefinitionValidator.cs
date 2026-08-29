@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Sockets;
 
 namespace TestConnection {
     internal static class TesterDefinitionValidator {
@@ -8,11 +9,8 @@ namespace TestConnection {
                 return "試験定義がありません";
             }
 
-            if (definition.LocalIpAddress != string.Empty) {
-                IPAddress ignored;
-                if (!IPAddress.TryParse(definition.LocalIpAddress, out ignored)) {
-                    return definition.LocalIpAddress + " ローカルIPアドレスが無効です";
-                }
+            if (definition.LocalIpAddress != string.Empty && !IsIpv4Address(definition.LocalIpAddress)) {
+                return definition.LocalIpAddress + " ローカルIPv4アドレスが無効です";
             }
 
             if (definition.Role == TesterRole.Server) {
@@ -38,9 +36,8 @@ namespace TestConnection {
 
         private static string ValidateClient(TesterDefinition definition) {
             if (definition.Protocol == ProtocolName.DNS) {
-                IPAddress ignored;
-                if (!IPAddress.TryParse(definition.RemoteIpAddress, out ignored)) {
-                    return definition.RemoteIpAddress + " DNSサーバIPアドレスが無効です";
+                if (!IsIpv4Address(definition.RemoteIpAddress)) {
+                    return definition.RemoteIpAddress + " DNSサーバIPv4アドレスが無効です";
                 }
             }
             else if (!RemoteEndpointResolver.IsSupportedInput(definition.RemoteIpAddress)) {
@@ -60,10 +57,16 @@ namespace TestConnection {
 
         private static string ValidatePort(TesterDefinition definition) {
             if (definition.Protocol != ProtocolName.Ping &&
-                (definition.Port < 0 || 65535 < definition.Port)) {
+                (definition.Port < 1 || 65535 < definition.Port)) {
                 return definition.Port + " ポート番号が無効です";
             }
             return null;
+        }
+
+        private static bool IsIpv4Address(string value) {
+            IPAddress address;
+            return IPAddress.TryParse(value, out address) &&
+                address.AddressFamily == AddressFamily.InterNetwork;
         }
     }
 }
