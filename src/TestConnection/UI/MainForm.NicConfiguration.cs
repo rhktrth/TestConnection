@@ -12,6 +12,7 @@ namespace TestConnection {
 
         protected override void OnLoad(EventArgs e) {
             base.OnLoad(e);
+            groupBox1.Text = "結果ログ";
             updateNicButtons();
         }
 
@@ -22,13 +23,12 @@ namespace TestConnection {
                 return;
             }
 
-            IPAddress ignored;
-            if (!IPAddress.TryParse(subnetTextBox.Text, out ignored)) {
-                MessageBox.Show("サブネットマスクが無効です");
+            if (!isIpv4Address(subnetTextBox.Text)) {
+                MessageBox.Show("IPv4サブネットマスクが無効です");
                 return;
             }
-            if (!IPAddress.TryParse(defgwTextBox.Text, out ignored)) {
-                MessageBox.Show("デフォルトゲートウェイが無効です");
+            if (!isIpv4Address(defgwTextBox.Text)) {
+                MessageBox.Show("IPv4デフォルトゲートウェイが無効です");
                 return;
             }
 
@@ -42,7 +42,7 @@ namespace TestConnection {
             }
 
             if (ipList.Count == 0) {
-                MessageBox.Show("NICへ設定するローカルIPアドレスがありません。");
+                MessageBox.Show("NICへ設定するローカルIPv4アドレスがありません。");
                 return;
             }
 
@@ -118,6 +118,12 @@ namespace TestConnection {
 
             ipList.Add(address);
             subnetList.Add(subnetTextBox.Text);
+        }
+
+        private static bool isIpv4Address(string value) {
+            IPAddress address;
+            return IPAddress.TryParse(value, out address) &&
+                address.AddressFamily == AddressFamily.InterNetwork;
         }
 
         private bool restoreNicSettings(bool showError) {

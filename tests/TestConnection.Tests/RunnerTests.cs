@@ -7,23 +7,21 @@ namespace TestConnection.Tests {
     internal static class RunnerTests {
         public static void TestFiniteClientLoop() {
             int total = 0;
-            using (ManualResetEvent completed = new ManualResetEvent(false)) {
+            using (ManualResetEvent runnerCompleted = new ManualResetEvent(false)) {
                 FakeTesterClient first = new FakeTesterClient(delegate {
-                    if (Interlocked.Increment(ref total) == 4) {
-                        completed.Set();
-                    }
+                    Interlocked.Increment(ref total);
                 });
                 FakeTesterClient second = new FakeTesterClient(delegate {
-                    if (Interlocked.Increment(ref total) == 4) {
-                        completed.Set();
-                    }
+                    Interlocked.Increment(ref total);
                 });
 
                 ClientTestRunner runner = new ClientTestRunner(
-                    new TesterClient[] { first, second }, 0, 0);
+                    new TesterClient[] { first, second }, 0, 0,
+                    delegate { runnerCompleted.Set(); });
                 runner.Start(2);
 
-                TestAssert.True(completed.WaitOne(3000), "finite loop completion");
+                TestAssert.True(runnerCompleted.WaitOne(3000), "finite loop completion callback");
+                TestAssert.Equal(4, total, "total finite attempts");
                 TestAssert.Equal(2, first.TryCount, "first tester count");
                 TestAssert.Equal(2, second.TryCount, "second tester count");
                 runner.Stop();
@@ -102,6 +100,30 @@ namespace TestConnection.Tests {
                 session.Stop();
                 TestAssert.Equal(1, secondServer.StopCount, "second server stop count");
                 TestAssert.Equal(1, secondClient.CancelCount, "second client cancel count");
+            }
+        }
+
+        public static void TestFiniteSessionCompletes() {
+            List<string> order = new List<string>();
+            using (ManualResetEvent completed = new ManualResetEvent(false)) {
+                TestSession session = new TestSession(
+                    delegate { }, null, null, delegate { completed.Set(); });
+                SessionTesterServer server = new SessionTesterServer(order, "finite");
+                FiniteSessionTesterClient client = new FiniteSessionTesterClient();
+
+                session.Start(new TesterBase[] { server, client }, 0, 0, 2);
+
+                TestAssert.True(completed.WaitOne(3000), "finite session completion notification");
+                TestAssert.False(session.IsRunning, "finite session stopped automatically");
+                TestAssert.Equal(2, client.TryCount, "finite session client count");
+                TestAssert.Equal(1, server.StopCount, "finite session server stopped");
+
+                SessionTesterServer serverOnly = new SessionTesterServer(order, "server-only");
+                session.Start(new TesterBase[] { serverOnly }, 0, 0, 1);
+                Thread.Sleep(100);
+                TestAssert.True(session.IsRunning, "server-only session remains running");
+                session.Stop();
+                TestAssert.Equal(1, serverOnly.StopCount, "server-only session manual stop");
             }
         }
 
@@ -222,6 +244,21 @@ namespace TestConnection.Tests {
                 }
                 TryCount++;
                 completed.Set();
+            }
+
+            protected override void CancelCurrentAttempt() {
+            }
+        }
+
+        private sealed class FiniteSessionTesterClient : TesterClient {
+            public int TryCount { get; private set; }
+
+            public FiniteSessionTesterClient()
+                : base(delegate { }, ClientDefinition()) {
+            }
+
+            public override void RunOnce() {
+                TryCount++;
             }
 
             protected override void CancelCurrentAttempt() {
