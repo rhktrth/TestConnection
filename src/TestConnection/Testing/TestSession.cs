@@ -6,13 +6,15 @@ namespace TestConnection {
         private readonly Action<string> resultOutput;
         private readonly Action successHandler;
         private readonly Action failureHandler;
+        private readonly Action completedHandler;
         private readonly object stateLock = new object();
         private List<TesterBase> activeTesters = new List<TesterBase>();
         private List<TesterServer> activeServers = new List<TesterServer>();
         private ClientTestRunner clientRunner;
         private bool running;
 
-        public TestSession(Action<string> resultOutput, Action successHandler, Action failureHandler) {
+        public TestSession(Action<string> resultOutput, Action successHandler, Action failureHandler,
+            Action completedHandler = null) {
             if (resultOutput == null) {
                 throw new ArgumentNullException("resultOutput");
             }
@@ -20,6 +22,7 @@ namespace TestConnection {
             this.resultOutput = resultOutput;
             this.successHandler = successHandler;
             this.failureHandler = failureHandler;
+            this.completedHandler = completedHandler;
         }
 
         public bool IsRunning {
@@ -80,7 +83,8 @@ namespace TestConnection {
                     throw new InvalidOperationException("tester typeが無効です。");
                 }
 
-                newClientRunner = new ClientTestRunner(clients, itemInterval, listInterval);
+                newClientRunner = new ClientTestRunner(
+                    clients, itemInterval, listInterval, OnClientRunnerCompleted);
                 activeServers = newServers;
                 clientRunner = newClientRunner;
                 running = true;
@@ -114,7 +118,29 @@ namespace TestConnection {
             if (currentClients != null) {
                 currentClients.Stop();
             }
-            foreach (TesterServer server in currentServers) {
+            StopServers(currentServers);
+        }
+
+        private void OnClientRunnerCompleted() {
+            List<TesterServer> currentServers;
+
+            lock (stateLock) {
+                if (!running) {
+                    return;
+                }
+
+                running = false;
+                currentServers = new List<TesterServer>(activeServers);
+            }
+
+            StopServers(currentServers);
+            if (completedHandler != null) {
+                completedHandler();
+            }
+        }
+
+        private static void StopServers(IEnumerable<TesterServer> servers) {
+            foreach (TesterServer server in servers) {
                 server.Stop();
             }
         }
