@@ -15,11 +15,14 @@ namespace TestConnection.Tests {
             Run("有限回数のclient runnerを登録順に実行する", RunnerTests.TestFiniteClientLoop);
             Run("client runnerのStopが現在試行をCancelしてworker終了を待つ", RunnerTests.TestClientLoopStop);
             Run("TestSessionが開始停止順序と再Startを管理する", RunnerTests.TestSessionLifecycle);
+            Run("有限回数完了でTestSession全体が停止する", RunnerTests.TestFiniteSessionCompletes);
             Run("TestSessionが定義からtesterを生成する", RunnerTests.TestSessionCreatesTester);
             Run("server Startがlisten準備完了を待つ", RunnerTests.TestServerStartWaitsForReady);
             Run("結果ログprefixが空endpointへ区切り文字を付けない", ConnectivityTests.TestResultLogFormat);
-            Run("既存5列CSVを互換にparse/serializeする", ConfigurationTests.TestTesterDefinitionFormat);
+            Run("既存CSVを互換にparseして5列でserializeする", ConfigurationTests.TestTesterDefinitionFormat);
             Run("設定ファイルを全件検証して読み書きする", ConfigurationTests.TestTesterDefinitionFile);
+            Run("試験定義をIPv4と有効ポートへ限定する", ConfigurationTests.TestTesterDefinitionValidation);
+            Run("結果ログ出力先を利用者設定へ対応付ける", ConfigurationTests.TestResultLogSettings);
             Run("remote endpointのIPv4選択規則を固定する", ConnectivityTests.TestRemoteEndpointResolver);
             Run("WinForms High DPI構成が起動可能な形式である", ApplicationConfigurationTests.TestWinFormsApplicationConfiguration);
 
