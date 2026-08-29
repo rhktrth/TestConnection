@@ -5,8 +5,6 @@ using System.Windows.Forms;
 
 namespace TestConnection {
     public partial class MainForm : Form {
-        enum ResultLogProcessType { Window, File, None };
-
         const string CRLF = "\r\n";
         const string DEFAULTSETTING = "res/default.csv";
         const string SUCCESSSOUNDFILE = "res/success.wav";
@@ -22,7 +20,9 @@ namespace TestConnection {
 
         public MainForm() {
             InitializeComponent();
-            testSession = new TestSession(outputTesterResult, successPlaySound, failurePlaySound);
+            testSession = new TestSession(
+                outputTesterResult, successPlaySound, failurePlaySound, testSessionCompleted);
+            setResultLogProcess(ResultLogSettings.Load(Properties.Settings.Default));
 
             if (System.IO.File.Exists(DEFAULTSETTING)) {
                 using (System.IO.StreamReader fsr = new System.IO.StreamReader(DEFAULTSETTING)) {
@@ -91,16 +91,7 @@ namespace TestConnection {
         }
 
         private bool prepareResultLog() {
-            if (radioButton1.Checked) {
-                nowlogProcess = ResultLogProcessType.Window;
-            }
-            else if (radioButton2.Checked) {
-                nowlogProcess = ResultLogProcessType.File;
-            }
-            else {
-                nowlogProcess = ResultLogProcessType.None;
-            }
-
+            nowlogProcess = getSelectedResultLogProcess();
             resultLogStreamWriter = null;
             if (nowlogProcess != ResultLogProcessType.File) {
                 return true;
@@ -116,6 +107,22 @@ namespace TestConnection {
 
             resultText.AppendText(logFileNameTextBox.Text + " への出力開始" + CRLF);
             return true;
+        }
+
+        private ResultLogProcessType getSelectedResultLogProcess() {
+            if (radioButton2.Checked) {
+                return ResultLogProcessType.File;
+            }
+            if (radioButton3.Checked) {
+                return ResultLogProcessType.None;
+            }
+            return ResultLogProcessType.Window;
+        }
+
+        private void setResultLogProcess(ResultLogProcessType processType) {
+            radioButton1.Checked = processType == ResultLogProcessType.Window;
+            radioButton2.Checked = processType == ResultLogProcessType.File;
+            radioButton3.Checked = processType == ResultLogProcessType.None;
         }
 
         private void startRunResources() {
@@ -153,6 +160,19 @@ namespace TestConnection {
             if (stopError != null) {
                 MessageBox.Show("試験の停止中にエラーが発生しました。" + CRLF + stopError.Message);
             }
+        }
+
+        private void testSessionCompleted() {
+            if (IsDisposed || Disposing) {
+                return;
+            }
+            if (InvokeRequired) {
+                BeginInvoke(new Action(testSessionCompleted));
+                return;
+            }
+
+            finishRunResources(true);
+            setIdleUiState();
         }
 
         private void finishRunResources(bool writeStoppedResult) {
@@ -428,7 +448,8 @@ namespace TestConnection {
         }
 
         private void saveSetting_Click(object sender, EventArgs e) {
-            global::TestConnection.Properties.Settings.Default.Save();
+            ResultLogSettings.Store(Properties.Settings.Default, getSelectedResultLogProcess());
+            Properties.Settings.Default.Save();
         }
 
         private void loadDefaultButton_Click(object sender, EventArgs e) {
@@ -440,9 +461,7 @@ namespace TestConnection {
             soundBox.Checked = false;
             subnetTextBox.Text = "255.255.255.0";
             defgwTextBox.Text = "0.0.0.0";
-            radioButton1.Checked = true;
-            radioButton2.Checked = false;
-            radioButton3.Checked = false;
+            setResultLogProcess(ResultLogProcessType.Window);
             logFileNameTextBox.Text = ".\\tescon.log";
         }
 
