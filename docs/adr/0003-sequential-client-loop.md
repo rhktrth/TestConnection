@@ -1,27 +1,23 @@
-# ADR-0003: client 試験は順次反復し協調的に停止する
+# ADR-0003: クライアント試験は順次反復し協調的に停止する
 
-## Decision
+## 決定
 
-client 試験は一つの background worker で登録順に実行し、item interval と list interval を挟んで反復します。
+クライアント試験は、同時性能測定ではなく時系列での疎通変化を確認する用途を優先し、**登録順の逐次実行と協調的な停止**を採用します。
 
-- client tester を一斉並列実行せず、一項目ずつ `Try()` する。
-- repeat count が 0 の場合は停止要求まで反復する。
-- interval 待機は停止 event を監視し、停止要求で解除できるようにする。
-- 停止は `Thread.Abort()` 等の強制終了を使わず、停止 event と現在実行中 tester の `Cancel()` を組み合わせる。
-- server tester は client loop から分離し、それぞれ background thread で継続待受する。
+現在の外部仕様は [`../EXTERNAL_DESIGN.md`](../EXTERNAL_DESIGN.md) の `EXT-RUN-001`、内部設計は [`../INTERNAL_DESIGN.md`](../INTERNAL_DESIGN.md) の `INT-SESSION-001`, `INT-RUNNER-001`, `INT-SERVER-001`, `INT-TESTER-001` を正本とします。
 
-protocol resource の close / dispose は各 tester が担当します。TCP / UDP / DNS / Ping client は normal / error / timeout / cancel の cleanup を `finally` 等の共通経路へ収束させ、blocking I/O を `Cancel()` で解除できる構造を維持します。server の thread lifecycle は `TesterServer` が共通管理し、具象 server は protocol 固有の listener / socket close だけを担当します。
+この ADR では、具体的な開始・停止手順やメソッド名を重複定義しません。「逐次実行を選ぶこと」と、「待ち状態の解除をスレッドの強制終了ではなく、リソースを所有する処理の停止操作で行うこと」の判断理由を記録します。
 
-## Rationale
+## 理由
 
-TestConnection は複数の疎通試験を一定間隔で繰り返し、経路や冗長機器の切替前後に成功・失敗の変化を観測する用途を持ちます。この用途では大量の同時接続を生成することより、試験順序と間隔が安定し、時系列で結果を追いやすいことを優先します。
+TestConnection は複数の疎通試験を一定間隔で繰り返し、経路や冗長機器の切替前後に成功・失敗の変化を確認する用途を持ちます。この用途では多数の接続先へ同時に接続することより、試験順序と間隔が安定し、結果を時系列で追いやすいことを優先します。
 
-TCP connect、DNS receive、Ping receive 等には blocking I/O があるため、worker thread を強制終了すると protocol resource や状態の後始末が不明確になります。停止要求と protocol 固有の `Cancel()` を分けることで、実行モデルと I/O 解放責務を分離します。
+TCP 接続、DNS 受信、Ping 受信などには待ち状態があります。処理スレッドを強制終了すると、ソケットなどのリソースの所有関係と後始末が不明確になるため、実行全体の停止要求と、各プロトコル固有のリソース解放責務を分けます。
 
-## Consequences
+## 影響
 
-- client の実行順と試行間隔を追いやすい。
-- load test や多数 endpoint の同時性能測定には向かない。
-- 一つの client 試行が timeout まで掛かると、後続項目もその分遅れる。
-- client の並列化が必要になった場合は、既存 loop へ場当たり的に追加せず、result の時系列 semantics と停止モデルを含めて設計判断を更新する。
-- protocol tester を変更する場合は、停止時の blocking I/O 解除と resource ownership を明確にする。
+- クライアントの実行順と試行間隔を追いやすい。
+- 負荷試験や多数の接続先を同時に測定する用途には向かない。
+- 一つのクライアント試行がタイムアウトまで掛かると、後続項目もその分遅れる。
+- 並列実行が必要になった場合は、場当たり的に処理スレッドを増やさず、結果の時系列上の意味、停止仕様、リソースの所有関係を含めて要件・外部設計・内部設計とこの判断を見直す。
+- 開始・停止手順や中断方法の具体的な仕様を変更する場合は、この ADR に詳細を追加するのではなく、上位文書から順に更新する。

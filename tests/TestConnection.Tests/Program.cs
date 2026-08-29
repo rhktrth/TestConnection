@@ -10,6 +10,7 @@ namespace TestConnection.Tests {
             Run("不正なICMP packetを拒否する", IcmpEchoPacketTests.TestMalformedEchoReply);
             Run("TCP client/serverがloopbackで接続できる", ConnectivityTests.TestTcpLoopback);
             Run("UDP client/serverがloopbackで送受信できる", ConnectivityTests.TestUdpLoopback);
+            Run("DNS clientがloopback responseをsuccessにする", ConnectivityTests.TestDnsLoopback);
             Run("DNS clientのCancelが受信待ちをfailureなしで終了する", ConnectivityTests.TestDnsCancellation);
             Run("有限回数のclient runnerを登録順に実行する", RunnerTests.TestFiniteClientLoop);
             Run("client runnerのStopが現在試行をCancelしてworker終了を待つ", RunnerTests.TestClientLoopStop);

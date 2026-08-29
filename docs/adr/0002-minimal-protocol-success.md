@@ -1,30 +1,31 @@
-# ADR-0002: 疎通判定は protocol の最小成立点に限定する
+# ADR-0002: 疎通判定はプロトコルの最小成立点に限定する
 
-## Decision
+## 決定
 
-TestConnection の success は、各 protocol で現在観測している最小の成立点に限定します。application protocol 固有の正常性まで暗黙に拡張しません。
+TestConnection の成功判定は、各プロトコルで疎通確認に必要な**最小の成立点**に限定し、アプリケーション固有の正常性まで暗黙に広げません。
 
-- TCP client: connection が確立した時点で success とし、application data を送信せず切断する。
-- TCP server: connection を accept した時点で success とし、application data を交換せず切断する。
-- UDP client: datagram の送信 API が成功した時点で success とする。遠端到達は意味しない。
-- UDP server: datagram を受信した時点で success とする。
-- DNS client: 固定 query を指定 DNS server へ送信し、UDP response を受信した時点で success とする。transaction ID、RCODE、answer 内容は判定しない。
-- Ping client: ICMP Echo Request を送信し、同じ宛先から type=Echo Reply、identifier、sequence number が対応する response を受信した時点で success とする。
+現在の具体的な成功条件は [`../EXTERNAL_DESIGN.md`](../EXTERNAL_DESIGN.md) の次の外部仕様を正本とします。
 
-local IP address が指定された tester はその address に bind し、未指定の場合は OS に送信元 address の選択を委ねます。
+- `EXT-TCP-001`, `EXT-TCP-002`
+- `EXT-UDP-001`, `EXT-UDP-002`
+- `EXT-DNS-001`
+- `EXT-PING-001`
 
-## Rationale
+この ADR では各成功条件の詳細を重複して定義せず、「プロトコルの最小成立点までを TestConnection の責務とする」という判断理由を記録します。
 
-TestConnection の主用途は、router、firewall、経路制御、冗長構成等がある環境で、指定した送信元から指定した宛先への通信がどこまで成立するかを観測することです。
+## 理由
 
-application 固有の handshake、認証、業務データ、長時間 session 維持まで success 条件へ含めると、試験対象サービスへの依存と副作用が増えます。また TCP、UDP、DNS、ICMP では success が技術的に意味する範囲が異なるため、一律に「相手が正常」と表現しません。
+TestConnection の主な用途は、ルーター、ファイアウォール、経路制御、冗長構成などがある環境で、指定した送信元から指定した宛先への通信がどこまで成立するかを確認することです。
 
-Ping については、raw ICMP socket が無関係な ICMP packet も受信し得るため、「何らかのpacketを受信した」だけではfalse positiveになり得ます。Echo Replyのtype / identifier / sequence numberと送信先addressを照合することはapplication-level判定への拡張ではなく、ICMP Echo成立点そのものを正しく観測するための条件とします。
+アプリケーション固有のハンドシェイク、認証、業務データ、長時間のセッション維持まで成功条件へ含めると、試験対象サービスへの依存と副作用が増えます。また、TCP、UDP、DNS、ICMP では確認できる成立点が異なるため、一律に「相手が正常」と表現しません。
 
-## Consequences
+Ping では raw ICMP socket が無関係なパケットも受信し得ます。そのため、送信した Echo Request と受信した Echo Reply の対応を確認することは、アプリケーション層の判定へ広げることではなく、ICMP Echo の成立点そのものを正しく確認するために必要です。
 
-- TCP success は対象 application の正常性を保証しない。
-- UDP client の success だけでは遠端到達を証明できない。UDP server、packet capture、firewall log 等の別観測点が必要になる。
-- DNS success は UDP response の受信を示すが、名前解決結果の意味的妥当性を保証しない。
-- Ping success は送信した Echo Request に対応する Echo Reply の受信を示すが、application port や上位applicationの正常性は保証しない。
-- success semantics を強化・変更する場合は、既存の意味を暗黙に変えず、この ADR と利用者向け説明を先に更新する。
+## 影響
+
+- TCP の成功は、接続先アプリケーションのハンドシェイク、認証、業務処理の成功を保証しない。
+- UDP クライアントの成功だけでは遠端到達を証明できず、別の観測手段を必要とする。
+- DNS の成功は UDP 応答の受信を示すが、応答内容の意味的な妥当性までは保証しない。
+- Ping の成功は対応する Echo Reply の受信を示すが、アプリケーションポートや上位アプリケーションの正常性は保証しない。
+- 将来アプリケーション層の確認機能を追加する場合は、既存試験の成功の意味を黙って強化せず、要件と外部設計で別の仕様として先に定義する。
+- プロトコルごとの具体的な条件を変更する場合は、この ADR に詳細を重ねるのではなく、まず `REQUIREMENTS.md` と `EXTERNAL_DESIGN.md` を更新する。

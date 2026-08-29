@@ -1,71 +1,140 @@
 # TestConnection 向け AI・開発ルール
 
-このリポジトリは、Windows 上で TCP / UDP / DNS / Ping の疎通確認を行う小型ツールを、個人で把握・保守できる規模に保ちます。
+このファイルは、TestConnection を変更するときの作業規則と完了条件を定めます。製品仕様そのものは再定義しません。
 
-正本は役割ごとに分けます。
+## 正本
 
-- 利用者向けの使い方: [`README.md`](README.md)
-- 現在の内部構成と責務: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- ビルド・テスト・配布: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
-- 現在有効な設計判断と理由: [`docs/adr/`](docs/adr/)
-- release履歴とrelease note: GitHub Releases
+- 仕様駆動の工程・文書体系: [`docs/README.md`](docs/README.md)
+- 要件: [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md)
+- 外部設計: [`docs/EXTERNAL_DESIGN.md`](docs/EXTERNAL_DESIGN.md)
+- 内部設計: [`docs/INTERNAL_DESIGN.md`](docs/INTERNAL_DESIGN.md)
+- 利用者向け概要・使い方: [`README.md`](README.md)
+- ビルド・テスト・配布・リリース: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- 重要な設計判断: [`docs/adr/`](docs/adr/)
+- PR 時の CI: [`.github/workflows/test.yml`](.github/workflows/test.yml)
+- リリース処理: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 
-## 原則
+ソースコードとテストは、上位の要件・設計を実現・検証する成果物です。矛盾した場合に、ソースコードやテストを自動的な正本として扱ってはいけません。
 
-- 現在必要な疎通確認機能を単純に保ち、将来拡張だけを目的とする abstraction、framework、compatibility layer、設定項目を追加しない。
-- 挙動変更を伴わない整理では、利用者から見える通信仕様、設定ファイル、ログの意味を変えない。
-- 過去の構成、移行経緯、廃止済み仕様をコードや文書へ残さない。履歴は Git history / Issue / PR / GitHub Releases に任せる。
-- runtime dependency は .NET Framework 標準ライブラリだけを基本とする。
-- Visual Studio 固有の発行設定を配布の正本にしない。ClickOnce は使用しない。
-- インストーラを前提にせず、展開して実行できる ZIP を配布単位とする。
-- 配布ZIPの構成と生成処理は `src/TestConnection/TestConnection.csproj` の `Package` target を正本とし、同じ処理を行う補助scriptを追加しない。
-- 実名、個人メールアドレス、ローカルユーザー名、個人環境固有のパスなど、作者個人を特定し得る情報をコード・設定・配布物へ含めない。ライセンス上必要な著作権表示と公開 GitHub リポジトリ識別子は除く。
-- project GUID、assembly GUID、署名・発行識別子などの application-specific identifier は、不要に旧配布物や別ソフトとの相関を作る値を再利用しない。Windows / Microsoft が仕様として定義する標準識別子はこの対象外とする。
+## 仕様駆動開発の必須順序
+
+機能、外部挙動、内部構造を変更するときは、**要件 → 外部設計 → 内部設計 → 実装 → テスト** の順序を必ず守ります。
+
+1. **要件確認・要件定義**
+   - 依頼が既存の `REQ-*` の範囲内か、要件変更かを判断する。
+   - 要件変更であれば、最初に `docs/REQUIREMENTS.md` を変更して要求を確定する。
+2. **外部設計**
+   - 確定した要件を、外部から観測できる仕様へ具体化する。
+   - `docs/EXTERNAL_DESIGN.md` の `EXT-*` と、必要な `AC-*` を確定する。
+3. **内部設計**
+   - 外部仕様を実現する責務、処理順序、状態、並行処理、リソースの所有関係、エラー処理を `docs/INTERNAL_DESIGN.md` と `INT-*` で確定する。
+4. **実装**
+   - 確定した内部設計を、ソースコード、プロジェクトファイル、設定、ワークフローへ実装する。
+   - 実装途中で上位設計が不適切と分かった場合は、その場でコードに合わせず、該当する上位段階へ戻って先に修正する。
+5. **テスト**
+   - 実装後に、その実装が `REQ-*` / `EXT-*` / `INT-*` / `AC-*` を満たすことを、自動テストまたは手動確認で検証する。
+   - 回帰リスクがある仕様に不足するテストがあれば追加または更新する。
+6. **横断確認**
+   - 要件、外部設計、内部設計、実装、テスト、README、OPERATIONS、ADR に、矛盾・古い記述・不要な重複がないことを確認する。
+
+この順序は、工程ごとにコミットを分けることを要求しません。同じ PR や同じコミットに含めても構いませんが、判断と編集は必ず上流から下流へ進めます。
+
+## 変更分類
+
+作業開始時に次のいずれかへ分類します。
+
+- **A: 要件変更** — 目的、機能要件、非機能要件、制約が変わる。
+- **B: 外部設計変更** — 要件は同じだが、外部から観測できる仕様が変わる。
+- **C: 内部設計変更** — 外部仕様は同じだが、内部の責務・処理方式・ライフサイクルなどが変わる。
+- **D: 実装のみ** — 上位仕様を変えない不具合修正・整理。
+- **E: 運用のみ** — ビルド、テスト、配布物作成、CI、リリースの手順だけが変わる。
+
+A / B / C は、必ず下流工程への影響を確認します。D の場合でも、実装を変更する前に既存の REQUIREMENTS / EXTERNAL_DESIGN / INTERNAL_DESIGN が変更後も正しいことを確認します。
+
+## 仕様 ID と未確定事項
+
+- 要件: `REQ-<AREA>-NNN`
+- 外部仕様: `EXT-<AREA>-NNN`
+- 受入条件: `AC-<AREA>-NNN`
+- 内部設計: `INT-<AREA>-NNN`
+- 未確定事項: `TBD-<AREA>-NNN`
+
+ID は全行へ付けません。変更、レビュー、対応関係の確認に価値がある仕様・設計単位だけに付与します。
+
+未確定事項を、ソースコード、現在のテスト、一般的なベストプラクティス、他製品の慣例、AI の推測だけで確定してはいけません。
+
+## 追跡可能性
+
+原則として、次の対応を追跡できる状態を維持します。
+
+```text
+REQ -> EXT / AC -> INT -> 実装 -> テスト
+```
+
+- 要件から、対応する外部仕様、内部設計、実装、検証箇所を探せること。
+- テストや実装から、どの上位要件・設計を実現・検証しているか戻れること。
+- 対応関係を示すためだけに、同じ仕様本文を別文書へコピーしないこと。
+
+## 基本原則
+
+- 現在必要な疎通確認機能を単純に保ち、将来拡張だけを目的とする抽象化、フレームワーク、互換層、設定項目を追加しない。
+- 共通化は変更理由が同じものに限定する。見た目が似ているだけではまとめない。
+- 過去の構成、移行経緯、廃止済み仕様をコード・文書・コメントへ残さない。履歴は Git history、Issue、PR、GitHub Releases に任せる。
+- 実行時依存は .NET Framework 標準ライブラリだけを基本とする。
+- IDE 固有設定をビルド・配布物作成の正本にしない。
+- インストーラーや ClickOnce を前提にせず、展開して実行できる ZIP を配布単位とする。
+- 実名、個人メールアドレス、ローカルユーザー名、個人環境固有のパスなどをコード、設定、配布物へ含めない。
 
 ## C# / WinForms
 
-- target framework は `net481`（.NET Framework 4.8.1）に固定する。理由と変更条件は [`ADR-0001`](docs/adr/0001-winforms-net481-zip.md) を正本とする。
-- target framework を変更する実装を先に行わない。変更が必要な場合は、まず ADR-0001 の Decision / Rationale を現在の判断へ更新する。
-- Windows 11 で追加 runtime なしに動くことを優先し、「新しい .NET だから」という理由だけで modern .NET へ移行しない。
-- project file は SDK-style とし、target framework の古さを理由に旧形式 csproj へ戻さない。
-- UI は WinForms を維持する。別 UI framework への移行は、それ自体を目的に行わない。
-- C# はスペース4文字、XML / YAML はスペース2文字、UTF-8 / LF とし、共有書式は `.editorconfig` を正本とする。
-- コメントは日本語で、コードから分からない理由・制約だけを書く。過去実装の説明は書かない。
-- `MainForm` と通信処理の分離は、実際の変更理由がある範囲で段階的に行う。一括した全面再設計はしない。
+- 対象フレームワーク、UI フレームワーク、配布形態を変更する場合は、実装より先に REQUIREMENTS / EXTERNAL_DESIGN / ADR を更新する。
+- プロジェクトファイルは SDK-style を維持する。
+- C# はスペース4文字、XML / YAML はスペース2文字、UTF-8 / LF とする。共有書式は `.editorconfig` を正本とする。
+- コメントは、コードから分からない理由・制約だけを書く。過去実装の説明は書かない。
+- `MainForm` と通信処理の分離は、実際の変更理由がある範囲で段階的に行う。
 
 ## 文書
 
-- README は利用者向け情報だけを書く。
-- ARCHITECTURE は現在の内部構成・責務・通信上の意味だけを書く。
-- OPERATIONS はビルド・CI・配布方法だけを書く。
-- repository内にCHANGELOGを維持しない。release履歴とrelease noteはGitHub Releasesを正本とする。
-- 同じ仕様を複数文書へ重複記載しない。正本への参照で済ませる。
-- ADR は現在有効な判断だけを置く。判断が変わったら既存 ADR を編集・統合・削除し、superseded ADR を保存しない。
+- REQUIREMENTS は「何を必要とするか」を定義し、実装詳細を書かない。
+- EXTERNAL_DESIGN は外部から観測できる仕様を定義し、C# のクラスや非公開 API を書かない。
+- INTERNAL_DESIGN は責務、処理順序、状態、並行処理、リソースの所有関係、エラー処理を定義し、外部仕様を詳細にコピーしない。
+- README は利用者向け説明に限定する。
+- OPERATIONS はビルド、テスト、配布物作成、CI、リリースの実際の手順に限定する。
+- ADR は重要な判断の理由と見直し条件に限定し、現在の仕様を複製しない。
+- 同じ内容を複数文書へ同じ粒度で記載しない。
+- リポジトリ内に CHANGELOG を維持しない。リリース履歴とリリースノートは GitHub Releases を正本とする。
 
 ## テスト
 
-- coverage 率ではなく、通信判定、停止処理、設定読み書き、配布物欠落など利用時に重大な不具合を優先する。
-- ネットワーク integration test を追加する場合は原則 loopback を使用し、通常 CI から外部ホストへ接続しない。
-- 不具合修正では、現実的に自動化できる場合は再現テストを追加する。
-- private 実装の細かな呼出順だけを固定するテストを増やさない。
+- テストは工程上、要件・外部設計・内部設計・実装の後に行う検証段階とする。
+- カバレッジ率より、外部仕様、通信判定、停止処理、設定互換性、リソースの後始末、配布物などの重大な回帰を優先する。
+- 受入テストは非公開実装ではなく、ソケット、ファイル、結果出力など外部から確認できる結果を検証する。
+- ネットワーク統合テストは原則ループバックを使用し、通常の CI から外部ホストへ接続しない。
+- 実 NIC など再現性のある自動化が難しい項目は、手動確認として明示する。
+- 非公開実装の細かな呼出順だけを固定するテストを増やさない。
+- 現在の実装へ合わせるためだけに、上位仕様やテスト期待値を変更しない。
 
 ## GitHub 上の変更
 
-- 挙動変更・構造変更は Issue と branch / PR を基本とする。
-- Issue、PR、コミット説明は日本語で書く。識別子・製品名・技術用語は不自然に日本語化しない。
-- unrelated refactoring を同じ PR に混ぜない。ただし最小構成へ整理するため不可分な移動・削除・設定変更はまとめてよい。
-- GitHub Actionsはbuild / test / releaseのorchestrationに留め、csprojやtest codeが正本として検証している内容をworkflow scriptで二重実装しない。
-- GitHub Release は `master` の履歴上の commit に付けた `vX.Y.Z.W` 形式の tag を push して作成する。release trigger 用ファイルや Visual Studio Publish を追加しない。
-- release note は GitHub の自動生成機能を使用し、repository内に同じ履歴を再記載しない。PR title は自動生成release noteにそのまま現れても意味が通る内容にする。
-- version tag の `X.Y.Z.W` は `AssemblyVersion` と完全一致させる。配布ZIP名も同じ4桁versionを使用する。公開済みの version tag は通常、削除・付け替え・force update しない。
-- ユーザーの明示指示なしに PR を merge しない。
+- 挙動・構造変更はブランチと PR を基本とする。
+- Issue、PR、コミット説明は日本語で書く。識別子、製品名、正式な技術用語は不自然に日本語化しない。
+- 無関係なリファクタリングを同じ PR に混ぜない。
+- PR では [`.github/pull_request_template.md`](.github/pull_request_template.md) により、要件 → 外部設計 → 内部設計 → 実装 → テストの順序と対応関係を確認する。
+- GitHub Actions は処理の組み合わせに留め、プロジェクトファイルやテストコードの検証処理をワークフロー側で二重実装しない。
+- 既定ブランチは `main` とする。
+- ユーザーの明示指示なしに PR をマージしない。
 
-## Definition of Done
+## 完了条件
 
-1. `net481` の Release build が成功する。
-2. `TestConnection.csproj` の `Package` target で version 付き ZIP が生成される。
-3. ZIP に `TestConnection.exe`、`TestConnection.exe.config`、必要な `res/`、README、LICENSE が含まれる。
-4. 変更後に不要になった file / setting / document を残さない。
-5. README / ARCHITECTURE / OPERATIONS / 現行 ADR と実装が矛盾・重複しない。
+1. 変更が既存要件内か要件変更かを最初に判断した。
+2. 要件変更であれば `REQUIREMENTS.md` を最初に更新した。
+3. 外部仕様を変更する場合、`EXTERNAL_DESIGN.md` を内部設計・実装より先に更新した。
+4. 内部方式を変更する場合、`INTERNAL_DESIGN.md` を実装より先に更新した。
+5. 本体実装が確定した内部設計に従っている。
+6. 実装後のテスト・手動確認で上位要件・設計を満たすことを確認した。
+7. `REQ -> EXT / AC -> INT -> 実装 -> テスト` を追跡できる。
+8. PR の CI で Release ビルド、配布 ZIP 作成、回帰テストが成功する。
+9. README / REQUIREMENTS / EXTERNAL_DESIGN / INTERNAL_DESIGN / OPERATIONS / ADR / 実装 / テストに矛盾や不要な重複がない。
+10. 変更後に不要になったファイル、設定、文書、テスト、互換処理を残していない。
 
-Pull Request CI の正本は `.github/workflows/test.yml` とする。
+実際の CI コマンドは `.github/workflows/test.yml` を正本とします。
