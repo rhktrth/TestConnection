@@ -32,10 +32,10 @@
 
 - `Server` は TCP / UDP だけを受け付ける。
 - `Client` は TCP / UDP / DNS / Ping を受け付ける。
-- ローカル IP アドレスが空でない場合は、IP アドレスとして解釈できなければならない。
+- ローカル IP アドレスが空でない場合は IPv4 アドレスでなければならず、IPv6 は受け付けない。
 - TCP / UDP / Ping クライアントの接続先は IPv4 アドレスまたはホスト名 / FQDN を受け付ける。IPv6 リテラルは受け付けない。
-- DNS クライアントの接続先は問い合わせ先 DNS サーバーの IP アドレスとし、ホスト名は受け付けない。
-- Ping 以外のポート番号は 0 から 65535 の範囲とする。
+- DNS クライアントの接続先は問い合わせ先 DNS サーバーの IPv4 アドレスとし、ホスト名と IPv6 は受け付けない。
+- Ping 以外のポート番号は 1 から 65535 の範囲とする。Ping のポート番号は通信判定に使用しない。
 
 ### EXT-CFG-002: CSV の保存・読込み
 
@@ -46,7 +46,8 @@ Role,LocalIpAddress,RemoteIpAddress,Protocol,Port
 ```
 
 - 行頭が `#` の行は読込み時にコメントとして無視する。
-- 保存時は試験定義だけを出力し、コメント行は再出力しない。
+- 既存設定ファイルとの互換性のため、6 列目以降が存在する行は先頭 5 列を試験定義として読み込み、余剰列を無視する。
+- 保存時は常に上記 5 列の試験定義だけを出力し、コメント行や読込み時の余剰列は再出力しない。
 - ホスト名 / FQDN は解決済み IP アドレスへ置換せず、利用者が指定した文字列を保存する。
 - 無効な行は行番号を含む形式エラーとして扱う。
 
@@ -54,7 +55,7 @@ Role,LocalIpAddress,RemoteIpAddress,Protocol,Port
 
 ### EXT-ENDPOINT-001: ローカル側のアドレス
 
-`REQ-SOURCE-001` に基づき、クライアントとサーバーはローカル IP アドレスが指定されていればそのアドレスを使用し、未指定の場合は OS の通常のアドレス選択や待受動作を利用します。
+`REQ-SOURCE-001` に基づき、クライアントとサーバーはローカル IPv4 アドレスが指定されていればそのアドレスを使用し、未指定の場合は IPv4 の任意アドレスへ bind して OS の通常の IPv4 送信元選択や待受動作を利用します。
 
 ### EXT-RESOLVE-001: 接続先の名前解決
 
@@ -107,6 +108,8 @@ ICMP Echo Request を送信し、送信先 IPv4 アドレス、Echo Reply の ty
 - サーバー群の待受準備が完了または失敗したことを確定してから、クライアントの反復実行を開始する。
 - クライアント試験は登録順に一項目ずつ実行する。
 - repeat count が 0 の場合は、停止要求があるまで反復する。
+- repeat count が 1 以上でクライアント試験が存在する場合は、指定回数の全試行完了後にサーバー群も停止し、試験実行全体を待機状態へ戻す。
+- サーバーだけを登録した実行は、repeat count にかかわらず停止要求まで待受を継続する。
 - 停止時は実行中クライアントの待ち状態を中断し、クライアント側の処理終了後にサーバー群を停止する。
 - 二重の開始・停止によって同じ試験を重複実行・重複停止しない。
 
@@ -124,6 +127,10 @@ yyyy/MM/dd HH:mm:ss Role address:port/Protocol message
 
 ローカル接続先が未確定の場合は、不要な `:/` を出力しません。
 
+### EXT-RESULT-002: 結果ログ設定の保存
+
+結果の出力先は画面、ファイル、出力なしから選択でき、ファイル出力ではログファイル名を指定できます。環境設定の「設定を保存」を実行した場合、選択した出力先とログファイル名を利用者設定として保存し、次回起動時に復元します。
+
 ## 7. NIC 設定変更
 
 ### EXT-NIC-001: 変更対象と変更前状態の保持
@@ -132,7 +139,7 @@ yyyy/MM/dd HH:mm:ss Role address:port/Protocol message
 
 - 最初の変更直前に NIC ごとの元状態を保持する。
 - 同一 NIC を複数回変更しても、復元基準は最初の状態とする。
-- 変更対象は IP アドレス、サブネットマスク、デフォルトゲートウェイに限定する。
+- 変更対象は IPv4 アドレス、IPv4 サブネットマスク、IPv4 デフォルトゲートウェイに限定する。
 
 ### EXT-NIC-002: 復元
 
@@ -150,10 +157,11 @@ yyyy/MM/dd HH:mm:ss Role address:port/Protocol message
 | `REQ-PROTOCOL-001` / `EXT-UDP-*` | `AC-UDP-001`: ループバック上でデータグラム送受信が成立する | `ConnectivityTests.TestUdpLoopback` |
 | `REQ-PROTOCOL-001` / `EXT-DNS-001` | `AC-DNS-001`: ループバックからの応答は成功となり、停止による中断では成功・失敗件数や結果を増やさない | `ConnectivityTests.TestDnsLoopback`, `TestDnsCancellation` |
 | `REQ-PROTOCOL-001` / `EXT-PING-001` | `AC-PING-001`: 対応する Echo Reply だけを受理する。`AC-PING-002`: 不正・無関係なパケットを拒否する | `IcmpEchoPacketTests` |
-| `REQ-DESTINATION-001` / `EXT-RESOLVE-001` | `AC-RESOLVE-001`: 入力条件と IPv4 選択規則を維持する | `ConnectivityTests.TestRemoteEndpointResolver` |
-| `REQ-REPEAT-001` / `EXT-RUN-001` | `AC-RUN-001..003`: 順序、反復、停止、サーバー準備完了待ちを維持する | `RunnerTests` |
-| `REQ-CONFIG-001` / `EXT-CFG-*` | `AC-CFG-001..002`: 既存 CSV との互換性と入力検証を維持する | `ConfigurationTests` |
+| `REQ-SOURCE-001`, `REQ-DESTINATION-001` / `EXT-CFG-001`, `EXT-RESOLVE-001` | `AC-RESOLVE-001`: 入力条件と IPv4 選択規則を維持する。`AC-CFG-003`: IPv6 とポート 0 を対象外として拒否する | `ConnectivityTests.TestRemoteEndpointResolver`, `ConfigurationTests.TestTesterDefinitionValidation` |
+| `REQ-REPEAT-001` / `EXT-RUN-001` | `AC-RUN-001..004`: 順序、反復、停止、サーバー準備完了待ち、有限回数完了時の全体停止を維持する | `RunnerTests` |
+| `REQ-CONFIG-001` / `EXT-CFG-*` | `AC-CFG-001..002`: 既存 CSV との互換性、余剰列の扱い、保存形式を維持する | `ConfigurationTests` |
 | `REQ-RESULT-001` / `EXT-RESULT-001` | `AC-RESULT-001`: 結果の共通接頭部の仕様を維持する | `ConnectivityTests.TestResultLogFormat` |
+| `REQ-RESULT-001` / `EXT-RESULT-002` | `AC-RESULT-002`: 結果ログ出力先の設定値を保存用設定へ正しく対応付ける | `ConfigurationTests.TestResultLogSettings` |
 | `REQ-NIC-*` / `EXT-NIC-*` | `AC-NIC-001`: 保持した変更前状態へ通常経路で復元できる | 実 NIC に依存するため手動確認 |
 
 外部仕様を変更する場合は、必ず先に `REQUIREMENTS.md` の要件変更要否を判断します。要件を変更する場合は、要件を確定してからこの文書を更新します。
