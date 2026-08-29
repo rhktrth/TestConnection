@@ -1,8 +1,17 @@
 # Architecture Decision Records
 
-`docs/adr/` は TestConnection の現在有効な設計判断と理由を置く場所です。変更履歴の台帳にはせず、判断が変われば現在の設計を最も簡潔に表すよう編集・統合・削除します。過去経緯は Git history / Issue / PR を参照します。
+`docs/adr/` は TestConnection の現在有効な重要な設計判断について、「なぜその判断を選ぶか」と「どの前提が変われば見直すか」を置く場所です。
 
-`docs/ARCHITECTURE.md` が現在の内部設計仕様・責務・通信 semantics の正本、ADR は「なぜその形にするか」を扱います。
+ADR は変更履歴の台帳にせず、判断が変われば現在の設計を最も簡潔に表すよう編集・統合・削除します。過去経緯は Git history / Issue / Pull Request を参照します。
+
+正本の役割分担は次です。
+
+- 外部から観測できる現在の contract: [`../SPEC.md`](../SPEC.md)
+- 現在の内部構成・責務: [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
+- build / test / package / release: [`../OPERATIONS.md`](../OPERATIONS.md)
+- 判断理由と見直し条件: この `adr/`
+
+ADR に SPEC / ARCHITECTURE の contract を詳細にコピーしません。Decision には判断の境界だけを書き、現在の具体的な contract は stable ID / section を参照します。
 
 ## Current ADRs
 

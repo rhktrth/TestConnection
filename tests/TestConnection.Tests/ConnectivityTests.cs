@@ -51,6 +51,37 @@ namespace TestConnection.Tests {
             }
         }
 
+        public static void TestDnsLoopback() {
+            List<string> outputs = new List<string>();
+            using (UdpClient dnsServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0))) {
+                int port = ((IPEndPoint)dnsServer.Client.LocalEndPoint).Port;
+                dnsServer.Client.ReceiveTimeout = 3000;
+                DnsTesterClient tester = new DnsTesterClient(
+                    delegate(string message) { outputs.Add(message); },
+                    new TesterDefinition(
+                        TesterRole.Client, "127.0.0.1", "127.0.0.1", ProtocolName.DNS, port));
+                tester.TimeoutMilliseconds = 3000;
+
+                Thread tryThread = new Thread(tester.RunOnce);
+                tryThread.Start();
+
+                IPEndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 0);
+                byte[] query = dnsServer.Receive(ref clientEndPoint);
+                TestAssert.True(query.Length != 0, "DNS query received by loopback server");
+
+                byte[] response = { 0x00 };
+                dnsServer.Send(response, response.Length, clientEndPoint);
+
+                TestAssert.True(tryThread.Join(3000), "DNS Try exits after response");
+                TestAssert.Equal(1, tester.SuccessCount, "DNS response success count");
+                TestAssert.Equal(0, tester.FailureCount, "DNS response failure count");
+                TestAssert.Equal(1, outputs.Count, "DNS response output count");
+                TestAssert.True(
+                    outputs[0].Contains("dns-response-from 127.0.0.1:" + port),
+                    "DNS response endpoint output");
+            }
+        }
+
         public static void TestDnsCancellation() {
             List<string> outputs = new List<string>();
             using (UdpClient sink = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0))) {

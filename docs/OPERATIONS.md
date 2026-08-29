@@ -1,10 +1,10 @@
 # Operations
 
+この文書は TestConnection の build、regression test、package、CI、GitHub Release の実際の手順を定義します。製品の外部仕様は [`SPEC.md`](SPEC.md)、内部設計は [`ARCHITECTURE.md`](ARCHITECTURE.md) を参照してください。
+
 ## Runtime baseline
 
-利用者向けの基準環境は Windows 11 22H2 以降です。target framework は `net481`（.NET Framework 4.8.1）に固定します。
-
-Windows 11 22H2 以降には .NET Framework 4.8.1 が OS の一部として含まれるため、通常の配布物には .NET runtime を同梱せず、利用者にも runtime の追加インストールを要求しません。target framework を変更する判断は [`ADR-0001`](adr/0001-winforms-net481-zip.md) を正本とします。
+利用者向け基準環境は Windows 11 22H2 以降、target framework は `net481`（.NET Framework 4.8.1）です。変更条件は [`ADR-0001`](adr/0001-winforms-net481-zip.md) を正本とします。
 
 ## Build requirements
 
@@ -13,7 +13,7 @@ Windows 11 22H2 以降には .NET Framework 4.8.1 が OS の一部として含�
 - .NET Framework 4.8.1 Developer Pack
 - MSBuild / NuGet restore が利用できること
 
-Developer Pack は開発・ビルド時に必要な targeting pack であり、Windows 11 上で TestConnection を実行する利用者が別途導入するものではありません。
+Developer Pack は開発・build 時の targeting pack です。Windows 11 上で配布 ZIP を実行する利用者へ追加 install を要求するものではありません。
 
 ## Build
 
@@ -23,30 +23,32 @@ repository root で実行します。
 msbuild src\TestConnection\TestConnection.csproj /restore /m /p:Configuration=Release
 ```
 
-applicationのbuild対象は単一のSDK-style projectなので、repositoryではsolution fileを維持しません。regression testは下記のtest projectを別途buildします。Visual Studioで開発する場合も `src/TestConnection/TestConnection.csproj` を直接開けば、WinForms Designerを含む通常のproject開発ができます。
-
-SDK-style project は restore で build assets を生成してから build します。
+application は単一の SDK-style project なので solution file を維持しません。Visual Studio では `src/TestConnection/TestConnection.csproj` を直接開きます。
 
 ## Regression tests
 
-外部test frameworkへの依存を増やさず、`tests/TestConnection.Tests` の小さな `net481` console executableで重要なpure logic / lifecycle回帰を検証します。
+外部 test framework への dependency を増やさず、`tests/TestConnection.Tests` の小さな `net481` console executable で重要な contract / lifecycle の回帰を検証します。
 
 ```powershell
 msbuild tests\TestConnection.Tests\TestConnection.Tests.csproj /restore /m /p:Configuration=Release
 .\tests\TestConnection.Tests\bin\Release\net481\TestConnection.Tests.exe
 ```
 
-regression testでは次を検証します。
+現在の regression test は、主に次を検証します。
 
-- ICMP Echo Request生成とEcho Replyのtype / identifier / sequence number照合
-- malformed / 無関係なICMP packetをsuccessにしないこと
-- client loopの有限反復
-- client `Stop()` が実行中clientを`Cancel()`し、worker終了まで待つこと
-- server `Start()` がlisten準備完了まで待つこと
-- result logの共通prefixが空endpointへ不要な区切り文字を出さないこと
-- 既存5列CSVのparse / serialize互換性と不正formatの拒否
+- TCP / UDP の loopback connectivity
+- DNS の loopback response と cancel
+- ICMP Echo Request / Reply correlation と malformed packet rejection
+- client runner の登録順・反復・stop
+- `TestSession` と server readiness / lifecycle
+- remote endpoint の IPv4 selection rule
+- result prefix formatting
+- 5 列 CSV の parse / serialize / validation
+- WinForms application configuration
 
-通常CIでは外部hostへの疎通、実NIC設定変更、管理者権限が必要なraw ICMP送受信は行いません。network I/Oそのものではなく、外部環境に依存せず再現できる判定・停止・設定互換性を優先します。
+外部 contract と test の対応は [`SPEC.md`](SPEC.md) の acceptance / traceability table を正本とします。
+
+通常 CI では外部 host への疎通、実 NIC 設定変更、管理者権限が必要な raw ICMP の実送受信を行いません。network integration test は loopback を優先し、実 NIC に依存する `AC-NIC-001` は manual verification とします。
 
 ## Package
 
@@ -56,9 +58,9 @@ repository root で実行します。
 msbuild src\TestConnection\TestConnection.csproj /restore /m /t:Package /p:Configuration=Release
 ```
 
-`Package` target は Release build を含めて実行し、`dist/TestConnection-<version>.zip` を生成します。version の正本は `src/TestConnection/TestConnection.csproj` の `Version` propertyで、AssemblyVersion、FileVersion、ZIP名もこの値から生成します。
+`Package` target は Release build を含めて実行し、`dist/TestConnection-<Version>.zip` を生成します。package file 名に使う `Version` は MSBuild property `$(Version)` です。
 
-ZIP には次を含めます。
+ZIP の構成は `src/TestConnection/TestConnection.csproj` の `Package` target を正本とし、現在は次を含みます。
 
 - `TestConnection.exe`
 - `TestConnection.exe.config`
@@ -66,48 +68,60 @@ ZIP には次を含めます。
 - `README.md`
 - `LICENSE.txt`
 
-配布物の構成とZIP生成は `src/TestConnection/TestConnection.csproj` の `Package` target を正本とし、専用のpackage scriptは持ちません。target framework、version形式、AssemblyVersion、application manifest versionなど、package生成に必要な整合性検証もこのproject内で行います。
+package の生成処理を別 script や workflow 内へ二重実装しません。
 
-## CI
+## Pull Request CI
 
-`.github/workflows/test.yml` は pull request と `master` への push で次だけを実行します。
+`.github/workflows/test.yml` は `main` への Pull Request と `main` への push を対象に、code / build に関係する変更で次を実行します。
 
-1. `Package` targetでRelease配布ZIPを生成する。
-2. regression test projectをbuildする。
-3. regression test executableを実行する。
+1. `Package` target で Release package を build する。
+2. regression test project を build する。
+3. regression test executable を実行する。
 
-Package targetが正本として持つ検証をworkflow側で再実装したり、生成したZIPを再展開して同じ構成を二重検証したりしません。PRごとの配布artifact保存も行わず、実際の配布物はrelease workflowで生成します。
+workflow は orchestration に留め、`Package` target や test code が検証している内容を YAML / PowerShell で再実装しません。
 
-## Version update
+## Release version
 
-release version は4桁の `X.Y.Z.W` とします。versionを上げるときは次の順で更新します。
+正式 release の version は GitHub tag 名を正本とし、`vX.Y.Z.W` 形式を使用します。
 
-1. `src/TestConnection/TestConnection.csproj` の `<Version>X.Y.Z.W</Version>` を更新する。これがversion metadataの正本です。
-2. `src/TestConnection/Properties/app.manifest` の `assemblyIdentity version` を同じ値へ更新する。
-3. 必要に応じてREADME等の現行文書を更新する。
-4. `Package` または通常CIを実行する。
+release workflow は tag から先頭 `v` を除いた `X.Y.Z.W` を release build の version として使用し、checkout した working tree に対して次を行います。
 
-手書きの AssemblyVersion / AssemblyFileVersion は持ちません。
+- `app.manifest` の `assemblyIdentity version` を release version へ一時的に書き換える。
+- MSBuild へ `Version` / `AssemblyVersion` / `FileVersion` / `InformationalVersion` を release version として渡す。
+- `TestConnection-X.Y.Z.W.zip` を生成する。
 
-## Release
+そのため、release のたびに version trigger file や repository 内 CHANGELOG を更新しません。committed `app.manifest` の version は release identity の正本ではありません。
 
-release履歴とrelease noteの正本は GitHub Releases とし、repository内に別のCHANGELOGを維持しません。
+## GitHub Release
 
-GitHub Release は `vX.Y.Z.W` 形式の version tag を push したときだけ `.github/workflows/release.yml` が作成します。`RELEASE_VERSION` のような release trigger 用ファイルは使用しません。
+正式配布物の生成は `.github/workflows/release.yml` を正本とします。
 
-version更新と必要な現行文書の更新を通常の pull request と CI に通して `master` へ mergeし、そのrelease対象commitにtagを付けてpushします。
+通常の release 手順は次です。
 
-```powershell
-git switch master
-git pull --ff-only
-git tag v0.3.1.0
-git push origin v0.3.1.0
-```
+1. release 対象の変更を Pull Request と CI に通して `main` へ merge する。
+2. release 対象 commit に `vX.Y.Z.W` tag を用意する。
+3. その tag の GitHub Release を publish する。
+4. `release: published` event で release workflow が起動する。
+5. workflow が tag を checkout し、tag version で package を build する。
+6. ZIP の SHA-256 checksum file を生成する。
+7. ZIP と `.sha256` を同じ GitHub Release へ upload する。
 
-release workflowは、tag名が `v` + project `Version` と完全一致することを確認して `Package` targetを実行します。Packageが成功すると、既存のversion tagを使って GitHub Release `TestConnection X.Y.Z.W` を作成し、ZIPを添付します。
+既存 release asset を再生成する必要がある場合は、`workflow_dispatch` の `tag` input に既存の `vX.Y.Z.W` を指定できます。workflow は既存 asset を `--clobber` で置き換えます。通常の release では publish event を使用します。
 
-release note は `gh release create --generate-notes` により、前回release以降のmerged pull request等からGitHubが自動生成します。このため、releaseへ含める変更のPR titleは利用者から見て内容が分かるものにします。
+release workflow 自体は GitHub Release を作成しません。**既に publish された Release に asset を生成・upload する automation** です。
 
-release 後の version tag は release identity として扱い、通常は削除・付け替え・force update しません。過去の変更履歴を確認する場合は GitHub Releases、pull request、issue、Git history を参照します。
+release 履歴と release note の正本は GitHub Releases とし、repository 内に CHANGELOG や release note の複製を維持しません。
 
-Visual Studio の Publish / ClickOnce は使用しません。
+公開済み tag は release identity として扱い、通常は削除・付け替え・force update しません。
+
+## Release failure の確認
+
+release asset が付かない場合は、次を順に確認します。
+
+1. tag が `vX.Y.Z.W` 形式か。
+2. GitHub Release が publish 済みか。
+3. release workflow が対象 tag を checkout できているか。
+4. `Package` target が成功しているか。
+5. `gh release upload` が対象 Release を解決できているか。
+
+workflow 内の version injection は release build 用の working tree だけを変更し、`main` へ commit / push しません。
