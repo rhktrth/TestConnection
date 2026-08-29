@@ -1,23 +1,23 @@
-# ADR-0003: client 試験は順次反復し協調的に停止する
+# ADR-0003: クライアント試験は順次反復し協調的に停止する
 
-## Decision
+## 決定
 
-client 試験は、同時性能測定ではなく時系列での疎通変化を観測する用途を優先し、**登録順の逐次実行と協調的な停止**を採用します。
+クライアント試験は、同時性能測定ではなく時系列での疎通変化を確認する用途を優先し、**登録順の逐次実行と協調的な停止**を採用します。
 
-現在の外部 contract は [`../SPEC.md`](../SPEC.md) の `EXT-RUN-001`、内部設計は [`../ARCHITECTURE.md`](../ARCHITECTURE.md) の `INT-SESSION-001`, `INT-RUNNER-001`, `INT-SERVER-001`, `INT-TESTER-001` を正本とします。
+現在の外部仕様は [`../EXTERNAL_DESIGN.md`](../EXTERNAL_DESIGN.md) の `EXT-RUN-001`、内部設計は [`../INTERNAL_DESIGN.md`](../INTERNAL_DESIGN.md) の `INT-SESSION-001`, `INT-RUNNER-001`, `INT-SERVER-001`, `INT-TESTER-001` を正本とします。
 
-この ADR は具体的な start / stop sequence や method 名を重複定義せず、「逐次実行を選ぶこと」「blocking I/O を強制的な thread termination ではなく resource owner の cancel / close で解除すること」の判断理由を保持します。
+この ADR では、具体的な開始・停止手順やメソッド名を重複定義しません。「逐次実行を選ぶこと」と、「待ち状態の解除をスレッドの強制終了ではなく、リソースを所有する処理の停止操作で行うこと」の判断理由を記録します。
 
-## Rationale
+## 理由
 
-TestConnection は複数の疎通試験を一定間隔で繰り返し、経路や冗長機器の切替前後に success / failure の変化を観測する用途を持ちます。この用途では多数 endpoint への同時接続より、試験順序と間隔が安定し、result を時系列で追いやすいことを優先します。
+TestConnection は複数の疎通試験を一定間隔で繰り返し、経路や冗長機器の切替前後に成功・失敗の変化を確認する用途を持ちます。この用途では多数の接続先へ同時に接続することより、試験順序と間隔が安定し、結果を時系列で追いやすいことを優先します。
 
-TCP connect、DNS receive、Ping receive 等には blocking I/O があります。worker thread を強制終了すると socket 等の resource ownership と cleanup が不明確になるため、実行モデルの停止要求と protocol-specific resource の解放責務を分けます。
+TCP 接続、DNS 受信、Ping 受信などには待ち状態があります。処理スレッドを強制終了すると、ソケットなどのリソースの所有関係と後始末が不明確になるため、実行全体の停止要求と、各プロトコル固有のリソース解放責務を分けます。
 
-## Consequences
+## 影響
 
-- client の実行順と試行間隔を追いやすい。
-- load test や多数 endpoint の同時性能測定には向かない。
-- 一つの client 試行が timeout まで掛かると、後続項目もその分遅れる。
-- client の並列化が必要になった場合は場当たり的に worker を増やさず、result の時系列 semantics、停止 contract、resource ownership を含めて `SPEC.md` / `ARCHITECTURE.md` とこの判断を見直す。
-- start / stop sequence や cancellation の具体的な contract を変更する場合は、この ADR へ詳細を追加するのではなく、まず正本の `EXT-*` / `INT-*` を更新する。
+- クライアントの実行順と試行間隔を追いやすい。
+- 負荷試験や多数の接続先を同時に測定する用途には向かない。
+- 一つのクライアント試行がタイムアウトまで掛かると、後続項目もその分遅れる。
+- 並列実行が必要になった場合は、場当たり的に処理スレッドを増やさず、結果の時系列上の意味、停止仕様、リソースの所有関係を含めて要件・外部設計・内部設計とこの判断を見直す。
+- 開始・停止手順や中断方法の具体的な仕様を変更する場合は、この ADR に詳細を追加するのではなく、上位文書から順に更新する。
