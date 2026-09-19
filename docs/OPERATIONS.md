@@ -72,6 +72,8 @@ ZIP の構成は `src/TestConnection/TestConnection.csproj` の `Package` target
 
 ## PR の CI
 
+Pull Request の通常 CI は Actions 実行回数を抑えるため、Draft PR では job を実行しません。Ready for review へ変更した時点、および Ready 状態で head commit が更新された時点で CI を実行します。CI 失敗後に修正を反復する場合は PR を Draft へ戻し、必要な修正とローカル確認をまとめてから再び Ready for review へ変更します。`main` への push や手動実行など、Pull Request 以外の既存トリガーはこの Draft 制御の対象外です。
+
 `.github/workflows/test.yml` は `main` への PR と `main` への push を対象に、コードやビルドに関係する変更で次を実行します。
 
 1. `Package` target で Release 配布 ZIP を作成する。
